@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <title>Vesper Logo</title>
+  <!-- Squircle App Badge Background -->
+  <rect x="2" y="2" width="124" height="124" rx="28" fill="#FFFFFF" stroke="#E4E4E7" stroke-width="1.5"/>
+  <!-- Left Wing (Obsidian) -->
+  <polygon points="20,24 50,24 64,74 48,92" fill="#121214"/>
+  <!-- Right Wing (Deep Zinc) -->
+  <polygon points="108,24 78,24 64,74 80,92" fill="#27272A"/>
+  <!-- Keel Base -->
+  <polygon points="48,92 64,74 80,92 64,112" fill="#121214"/>
+  <!-- Evening Star - North-South Ray -->
+  <polygon points="64,16 67.5,48 64,80 60.5,48" fill="#00C4D4"/>
+  <!-- Evening Star - East-West Ray -->
+  <polygon points="36,48 64,51.5 92,48 64,44.5" fill="#00C4D4"/>
+  <!-- Star Core Diamond -->
+  <polygon points="64,36 72,48 64,60 56,48" fill="#7C3AED"/>
+  <polygon points="64,42 68,48 64,54 60,48" fill="#FFFFFF"/>
+</svg>

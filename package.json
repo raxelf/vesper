@@ -1,0 +1,28 @@
+{
+  "name": "@raxelf/vesper",
+  "version": "0.1.0",
+  "description": "Fast Roblox Studio AI Bridge",
+  "type": "module",
+  "main": "src/cli.js",
+  "bin": {
+    "vesper": "./bin/vesper"
+  },
+  "scripts": {
+    "start": "node src/cli.js serve",
+    "serve": "node src/cli.js serve"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "roblox",
+    "roblox-studio",
+    "ai",
+    "luau",
+    "automation",
+    "bridge",
+    "vesper"
+  ],
+  "author": "raxelf",
+  "license": "MIT"
+}
