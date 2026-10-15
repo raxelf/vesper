@@ -6,7 +6,6 @@ local HttpService = game:GetService("HttpService")
 local ChangeHistoryService = game:GetService("ChangeHistoryService")
 local TweenService = game:GetService("TweenService")
 local CoreGui = game:GetService("CoreGui")
-local Selection = game:GetService("Selection")
 
 local C_BG         = Color3.fromRGB(15, 15, 18)
 local C_CARD       = Color3.fromRGB(24, 24, 29)
@@ -934,11 +933,17 @@ local function resolveInstance(pathStr)
 	return target
 end
 
-local function dumpTree(pathStr)
-	local target = resolveInstance(pathStr) or workspace
+local TREE_MAX_LINES = 400
+
+local function dumpTree(arg)
+	local ok, opts = pcall(function() return HttpService:JSONDecode(arg) end)
+	if not ok or type(opts) ~= "table" then opts = { path = arg } end
+	local maxDepth = tonumber(opts.depth) or 4
+	local target = resolveInstance(opts.path)
+	if not target then return "ERROR: Instance not found: " .. tostring(opts.path) end
 	local lines = {}
 	local function scan(inst, depth)
-		if depth > 4 then return end
+		if depth > maxDepth or #lines >= TREE_MAX_LINES then return end
 		local line = string.rep("  ", depth) .. inst.Name .. " [" .. inst.ClassName .. "]"
 		if inst:IsA("BasePart") then
 			local p, s = inst.Position, inst.Size
@@ -950,107 +955,9 @@ local function dumpTree(pathStr)
 		for _, c in ipairs(inst:GetChildren()) do scan(c, depth + 1) end
 	end
 	scan(target, 0)
-	showToast("Tree Inspected", pathStr ~= "" and pathStr or "Workspace", "info")
+	if #lines >= TREE_MAX_LINES then table.insert(lines, "... truncated at " .. TREE_MAX_LINES .. " lines, use a deeper path or lower depth") end
+	showToast("Tree Inspected", tostring(opts.path or "Workspace"), "info")
 	return table.concat(lines, "\n")
-end
-
-local function dumpProps(pathStr)
-	local target = resolveInstance(pathStr)
-	if not target then return "ERROR: Instance not found: " .. tostring(pathStr) end
-
-	local info = {
-		FullName = target:GetFullName(),
-		ClassName = target.ClassName,
-		Attributes = target:GetAttributes(),
-		Tags = target:GetTags(),
-		ChildrenCount = #target:GetChildren(),
-	}
-	if target:IsA("BasePart") then
-		info.Position = tostring(target.Position)
-		info.Size = tostring(target.Size)
-		info.Orientation = tostring(target.Orientation)
-		info.Color = tostring(target.Color)
-		info.Material = tostring(target.Material)
-		info.Anchored = target.Anchored
-		info.CanCollide = target.CanCollide
-		info.Transparency = target.Transparency
-	end
-	showToast("Props Inspected", target.Name, "info")
-	return HttpService:JSONEncode(info)
-end
-
-local function getSelection()
-	local sel = Selection:Get()
-	if #sel == 0 then
-		appendLog("SEL", "Selection is empty", C_DIM)
-		return "[]"
-	end
-	appendLog("SEL", string.format("%d selected item(s)", #sel), C_VIOLET)
-	showToast("Selection Read", string.format("%d items", #sel), "info")
-	local out = {}
-	for _, inst in ipairs(sel) do
-		local item = {
-			name = inst.Name,
-			className = inst.ClassName,
-			path = inst:GetFullName(),
-		}
-		if inst:IsA("BasePart") then
-			item.position = { X = math.round(inst.Position.X * 10) / 10, Y = math.round(inst.Position.Y * 10) / 10, Z = math.round(inst.Position.Z * 10) / 10 }
-			item.size = { X = math.round(inst.Size.X * 10) / 10, Y = math.round(inst.Size.Y * 10) / 10, Z = math.round(inst.Size.Z * 10) / 10 }
-			item.material = inst.Material.Name
-			item.color = "#" .. inst.Color:ToHex()
-			item.anchored = inst.Anchored
-		elseif inst:IsA("Model") then
-			local cf, sz = inst:GetBoundingBox()
-			item.position = { X = math.round(cf.Position.X * 10) / 10, Y = math.round(cf.Position.Y * 10) / 10, Z = math.round(cf.Position.Z * 10) / 10 }
-			item.size = { X = math.round(sz.X * 10) / 10, Y = math.round(sz.Y * 10) / 10, Z = math.round(sz.Z * 10) / 10 }
-			item.childCount = #inst:GetChildren()
-		end
-		table.insert(out, item)
-	end
-	return HttpService:JSONEncode(out)
-end
-
-local function viewInstance(pathStr)
-	local target = resolveInstance(pathStr)
-	if not target then
-		appendLog("ERR", "View target not found: " .. tostring(pathStr), C_ROSE)
-		return "ERROR: Instance not found: " .. tostring(pathStr)
-	end
-
-	local cam = workspace.CurrentCamera
-	if not cam then
-		return "ERROR: CurrentCamera unavailable"
-	end
-
-	local targetPos = Vector3.zero
-	local dist = 16
-
-	if target:IsA("BasePart") then
-		targetPos = target.Position
-		dist = math.max(target.Size.X, target.Size.Y, target.Size.Z) * 1.6 + 8
-	elseif target:IsA("Model") then
-		local cf, sz = target:GetBoundingBox()
-		targetPos = cf.Position
-		dist = math.max(sz.X, sz.Y, sz.Z) * 1.5 + 10
-	elseif target:IsA("Attachment") then
-		targetPos = target.WorldPosition
-		dist = 10
-	else
-		local firstPart = target:FindFirstChildWhichIsA("BasePart", true)
-		if firstPart then
-			targetPos = firstPart.Position
-			dist = 18
-		end
-	end
-
-	local eyePos = targetPos + Vector3.new(dist * 0.7, dist * 0.5, dist * 0.7)
-	cam.CFrame = CFrame.lookAt(eyePos, targetPos)
-	cam.Focus = CFrame.new(targetPos)
-
-	appendLog("VIEW", "Focused camera on " .. target.Name, C_CYAN)
-	showToast("Camera Focused", target.Name, "info")
-	return "OK: Camera focused on " .. target:GetFullName()
 end
 
 local function handleCommand(raw)
@@ -1062,15 +969,8 @@ local function handleCommand(raw)
 	end
 
 	if data.cmd == "tree" then
-		appendLog("TREE", data.arg ~= "" and data.arg or "workspace", C_CYAN)
+		appendLog("TREE", tostring(data.arg), C_CYAN)
 		return dumpTree(data.arg)
-	elseif data.cmd == "props" then
-		appendLog("PROPS", tostring(data.arg), C_CYAN)
-		return dumpProps(data.arg)
-	elseif data.cmd == "sel" then
-		return getSelection()
-	elseif data.cmd == "view" then
-		return viewInstance(data.arg)
 	elseif data.cmd == "run" or data.cmd == "exec" then
 		local preview = string.sub(data.arg or "", 1, 55):gsub("[\n\r]", " ")
 		appendLog("EXEC", preview .. (string.len(data.arg or "") > 55 and "..." or ""), C_VIOLET)
@@ -1278,6 +1178,8 @@ task.spawn(function()
 
 			if ok and res and res.Success then
 				if res.Body and res.Body ~= "" and res.Body ~= "NOOP" then
+					local idOk, idData = pcall(function() return HttpService:JSONDecode(res.Body) end)
+					local cmdId = idOk and type(idData) == "table" and idData.id or ""
 					local cmdOk, cmdResult = pcall(handleCommand, res.Body)
 					local finalReply = cmdOk and tostring(cmdResult) or ("ERROR: " .. tostring(cmdResult))
 
@@ -1285,7 +1187,7 @@ task.spawn(function()
 						HttpService:RequestAsync({
 							Url = replyUrl,
 							Method = "POST",
-							Headers = { ["Content-Type"] = "text/plain" },
+							Headers = { ["Content-Type"] = "text/plain", ["X-Vesper-Id"] = tostring(cmdId) },
 							Body = finalReply,
 						})
 					end)

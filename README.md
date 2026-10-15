@@ -16,7 +16,7 @@
 
 Vesper connects AI pair programmers (Antigravity, Claude Code, Cursor, Windsurf, Aider) and CLI scripts directly to **Roblox Studio**. 
 
-It runs batch Luau builders, queries live mouse selections, snaps viewport cameras, inspects instance properties, and applies world geometry with native `Ctrl+Z` undo/redo tracking (`ChangeHistoryService`) in Edit Mode, plus live runtime inspection during Play Mode.
+It runs batch Luau builders, inspects the hierarchy, and applies world geometry with native `Ctrl+Z` undo/redo tracking (`ChangeHistoryService`) in Edit Mode, plus live runtime inspection during Play Mode.
 
 Built for Roblox developers building games on **Linux (Vinegar/Wine)**, **macOS**, and **Windows**.
 
@@ -26,7 +26,7 @@ Built for Roblox developers building games on **Linux (Vinegar/Wine)**, **macOS*
 
 Vesper consists of two lightweight pieces:
 1. **The CLI (`vesper`)**: Runs on your machine, managing the bridge server on port `8910`.
-2. **The Studio Plugin**: Runs inside Roblox Studio, executing Luau instructions with `Ctrl+Z` undo tracking in Edit Mode, live testing during Play Mode, and in-viewport toasts.
+2. **The Studio Plugin**: Runs inside Roblox Studio, executing Luau instructions with `Ctrl+Z` undo tracking in Edit Mode and in-viewport toasts.
 
 ---
 
@@ -79,17 +79,8 @@ If you prefer manual copying, place `plugin/Vesper.server.lua` into:
 3. Done! Run commands from your terminal or AI coding agent:
 
 ```bash
-# Inspect what is currently selected in Studio with your mouse
-vesper sel
-
-# Teleport / focus camera on any model or part
-vesper view Workspace.Arena
-
-# Inspect 3D world hierarchy
-vesper tree Workspace
-
-# Inspect full serialized JSON properties
-vesper props Workspace.Baseplate
+# Inspect hierarchy (path, optional depth; output capped at 400 lines)
+vesper tree Workspace 3
 
 # Execute Luau directly in Studio
 vesper exec "Instance.new('Part', workspace).Name = 'VesperCube'"
@@ -107,10 +98,7 @@ vesper run /tmp/build.luau
 | `vesper setup` | None | Auto-installs Studio plugin to your Roblox Plugins folder. |
 | `vesper serve` | None | Starts bridge server in foreground on port `8910` (`Ctrl+C` to stop). |
 | `vesper status` | None | Checks if server is running and Roblox Studio is connected. |
-| `vesper sel` | None | Inspects instances currently selected with the mouse in Studio. |
-| `vesper view` | `[path]` | Focuses Studio camera on an instance (defaults to `Workspace`). |
-| `vesper tree` | `[path]` | Dumps 3D world hierarchy (defaults to `Workspace`). |
-| `vesper props` | `<path>` | Returns JSON properties of an instance. |
+| `vesper tree` | `[path] [depth]` | Dumps hierarchy (defaults to `Workspace`, depth 4, max 400 lines). |
 | `vesper run` | `<file.luau \| code>` | Executes batch Luau builder script in Studio. |
 | `vesper exec` | `"<code/>"` | Executes inline Luau string in Studio. |
 | `vesper version` | None | Prints current version string. |
@@ -128,10 +116,7 @@ Vesper is built for autonomous and interactive AI workflows. Add this rule to yo
 
 For Roblox Studio manipulation, use the global CLI `vesper`:
 - `vesper status` — Verify bridge server and Roblox Studio connection status.
-- `vesper sel` — Inspect instances currently selected with the mouse in Studio.
-- `vesper view <path>` — Focus/teleport the Studio camera onto an instance or model.
 - `vesper tree Workspace` — Inspect 3D world hierarchy, positions, sizes, and colors.
-- `vesper props Workspace.Model` — Inspect JSON properties of an instance.
 - `vesper run /tmp/build.luau` — Execute a batch Luau builder script in Studio.
 - `vesper exec "print(...)"` — Run quick inline Luau commands.
 - **Rule**: Always batch 3D map/model generation into a single script written to `/tmp/build.luau` and executed via `vesper run /tmp/build.luau`.

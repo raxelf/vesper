@@ -23,8 +23,8 @@ fi
 # 2. Install CLI binary
 INSTALL_BIN_DIR="${HOME}/.local/bin"
 mkdir -p "${INSTALL_BIN_DIR}"
-cp -f "${REPO_DIR}/bin/vesper" "${INSTALL_BIN_DIR}/vesper"
-chmod +x "${INSTALL_BIN_DIR}/vesper"
+ln -sf "${REPO_DIR}/bin/vesper" "${INSTALL_BIN_DIR}/vesper"
+chmod +x "${REPO_DIR}/bin/vesper"
 echo "✔ CLI installed: ${INSTALL_BIN_DIR}/vesper"
 
 if [[ ":$PATH:" != *":${INSTALL_BIN_DIR}:"* ]]; then

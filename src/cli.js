@@ -1,14 +1,12 @@
 #!/usr/bin/env node
 import http from "node:http";
-import { existsSync, readFileSync, writeFileSync, unlinkSync, copyFileSync, mkdirSync } from "node:fs";
-import { spawn, execSync } from "node:child_process";
+import { existsSync, readFileSync, copyFileSync, mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 const VERSION = "0.1.0";
 const PORT = parseInt(process.env.VESPER_PORT || "8910", 10);
 const BASE_URL = `http://127.0.0.1:${PORT}`;
-const PID_FILE = `/tmp/vesper-${PORT}.pid`;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -106,7 +104,14 @@ function runServer() {
   let pollWaiter = null;
 
   const server = http.createServer(async (req, res) => {
-    const url = new URL(req.url, `http://${req.headers.host || "127.0.0.1"}`);
+    // Block browser pages (Origin set) and DNS rebinding (foreign Host) from reaching the bridge.
+    const host = req.headers.host || "";
+    if (req.headers.origin || !["127.0.0.1", "localhost"].includes(host.split(":")[0])) {
+      res.writeHead(403, { "Content-Type": "text/plain" });
+      res.end("ERROR: forbidden");
+      return;
+    }
+    const url = new URL(req.url, `http://${host}`);
 
     if (url.pathname === "/poll" && req.method === "GET") {
       lastPollTime = Date.now();
@@ -114,7 +119,7 @@ function runServer() {
       if (pendingQueue.length > 0) {
         currentCmd = pendingQueue.shift();
         res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ cmd: currentCmd.cmd, arg: currentCmd.arg }));
+        res.end(JSON.stringify({ id: currentCmd.id, cmd: currentCmd.cmd, arg: currentCmd.arg }));
         return;
       }
 
@@ -139,7 +144,7 @@ function runServer() {
     if (url.pathname === "/reply" && req.method === "POST") {
       lastPollTime = Date.now();
       const body = await readBody(req);
-      if (currentCmd) {
+      if (currentCmd && req.headers["x-vesper-id"] === currentCmd.id) {
         currentCmd.resolve(body);
         currentCmd = null;
       }
@@ -171,7 +176,7 @@ function runServer() {
           const pw = pollWaiter;
           pollWaiter = null;
           pw.res.writeHead(200, { "Content-Type": "application/json" });
-          pw.res.end(JSON.stringify({ cmd: cmdObj.cmd, arg: cmdObj.arg }));
+          pw.res.end(JSON.stringify({ id: cmdObj.id, cmd: cmdObj.cmd, arg: cmdObj.arg }));
         } else {
           pendingQueue.push(cmdObj);
         }
@@ -292,54 +297,17 @@ Usage:
   vesper serve                 Start bridge server (foreground, Ctrl+C to stop)
   vesper status                Check if server is running and Studio is connected
   vesper setup                 Auto-install Studio plugin to your Roblox Plugins folder
-  vesper sel                   Inspect currently selected instance(s) in Studio
-  vesper view [path]           Focus Studio camera on an instance (default: Workspace)
-  vesper tree [path]           Dump 3D world hierarchy (default: Workspace)
-  vesper props <path>          Inspect JSON properties of an instance
+  vesper tree [path] [depth]   Dump hierarchy (default: Workspace, depth 4)
   vesper run <file.luau|code>  Execute batch Luau builder script in Studio
   vesper exec "<code/>"        Execute inline Luau commands
   vesper version               Print current version`);
     process.exit(0);
   }
 
-  if (subcmd === "sel" || subcmd === "selection") {
-    const out = await sendCmd("sel", "");
-    try {
-      const parsed = JSON.parse(out);
-      console.log(JSON.stringify(parsed, null, 2));
-    } catch {
-      console.log(out);
-    }
-    return;
-  }
-
-  if (subcmd === "view") {
-    const path = args[0] || "Workspace";
-    const out = await sendCmd("view", path);
-    console.log(out);
-    return;
-  }
-
   if (subcmd === "tree") {
     const path = args[0] || "Workspace";
-    const out = await sendCmd("tree", path);
+    const out = await sendCmd("tree", JSON.stringify({ path, depth: parseInt(args[1] || "4", 10) }));
     console.log(out);
-    return;
-  }
-
-  if (subcmd === "props") {
-    const path = args[0];
-    if (!path) {
-      console.error("Error: specify instance path, e.g.: vesper props Workspace.Baseplate");
-      process.exit(1);
-    }
-    const out = await sendCmd("props", path);
-    try {
-      const parsed = JSON.parse(out);
-      console.log(JSON.stringify(parsed, null, 2));
-    } catch {
-      console.log(out);
-    }
     return;
   }
 
