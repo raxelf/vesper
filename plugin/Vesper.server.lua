@@ -55,7 +55,7 @@ local T_FAST   = TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection
 local isConnected    = false
 local HOST           = "http://127.0.0.1"
 local currentPort    = 8910
-local pollInterval   = 0.2
+local pollInterval   = 0
 local OFFLINE_GRACE  = 30
 local undoEnabled    = true
 
