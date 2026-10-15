@@ -82,6 +82,9 @@ If you prefer manual copying, place `plugin/Vesper.server.lua` into:
 # Inspect hierarchy (path, optional depth; output capped at 400 lines)
 vesper tree Workspace 3
 
+# Run Luau in a Play session; prints PASS/FAIL plus game logs (default timeout 20s)
+vesper test check.luau 30
+
 # Execute Luau directly in Studio
 vesper exec "Instance.new('Part', workspace).Name = 'VesperCube'"
 
@@ -100,6 +103,7 @@ vesper run /tmp/build.luau
 | `vesper status` | None | Checks if server is running and Roblox Studio is connected. |
 | `vesper tree` | `[path] [depth]` | Dumps hierarchy (defaults to `Workspace`, depth 4, max 400 lines). |
 | `vesper run` | `<file.luau \| code>` | Executes batch Luau builder script in Studio. |
+| `vesper test` | `<file.luau \| code> [seconds]` | Starts Play mode, runs the script server-side, returns PASS/FAIL and logs, then stops. |
 | `vesper exec` | `"<code/>"` | Executes inline Luau string in Studio. |
 | `vesper version` | None | Prints current version string. |
 

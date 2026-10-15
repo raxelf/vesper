@@ -239,7 +239,7 @@ async function isServerRunning() {
   }
 }
 
-async function sendCmd(cmd, arg) {
+async function sendCmd(cmd, arg, timeout) {
   if (!await isServerRunning()) {
     console.error(`Error: Vesper server is not running on port ${PORT}.`);
     console.error(`Start the server first with: vesper serve`);
@@ -248,7 +248,7 @@ async function sendCmd(cmd, arg) {
   const res = await fetch(`${BASE_URL}/cmd`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ cmd, arg })
+    body: JSON.stringify({ cmd, arg, timeout })
   });
   return await res.text();
 }
@@ -300,6 +300,7 @@ Usage:
   vesper tree [path] [depth]   Dump hierarchy (default: Workspace, depth 4)
   vesper run <file.luau|code>  Execute batch Luau builder script in Studio
   vesper exec "<code/>"        Execute inline Luau commands
+  vesper test <file|code> [s]  Run Luau in a Play session (default 20s), print PASS/FAIL + logs
   vesper version               Print current version`);
     process.exit(0);
   }
@@ -307,6 +308,20 @@ Usage:
   if (subcmd === "tree") {
     const path = args[0] || "Workspace";
     const out = await sendCmd("tree", JSON.stringify({ path, depth: parseInt(args[1] || "4", 10) }));
+    console.log(out);
+    return;
+  }
+
+  if (subcmd === "test") {
+    const last = args[args.length - 1];
+    const timeout = args.length > 1 && /^\d+$/.test(last) ? parseInt(args.pop(), 10) : 20;
+    let code = args.join(" ");
+    if (!code) {
+      console.error("Error: specify Luau code or file, e.g.: vesper test check.luau 30");
+      process.exit(1);
+    }
+    if (existsSync(code)) code = readFileSync(code, "utf8");
+    const out = await sendCmd("test", JSON.stringify({ code, timeout }), (timeout + 60) * 1000);
     console.log(out);
     return;
   }

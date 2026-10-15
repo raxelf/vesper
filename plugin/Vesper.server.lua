@@ -5,6 +5,7 @@ local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
 local ChangeHistoryService = game:GetService("ChangeHistoryService")
 local TweenService = game:GetService("TweenService")
+if not RunService:IsEdit() then return end
 local CoreGui = game:GetService("CoreGui")
 
 local C_BG         = Color3.fromRGB(15, 15, 18)
@@ -227,7 +228,7 @@ brandSub.Size = UDim2.new(1, 0, 0, 14)
 brandSub.Position = UDim2.new(0, 0, 0, 68)
 brandSub.BackgroundTransparency = 1
 brandSub.Font = FONT_REG
-brandSub.Text = "Roblox Studio AI Bridge"
+brandSub.Text = "Roblox Studio AI Bridge · v" .. VERSION
 brandSub.TextColor3 = C_MUTED
 brandSub.TextSize = 11
 brandSub.TextXAlignment = Enum.TextXAlignment.Center
@@ -438,6 +439,16 @@ sTitle.TextColor3 = C_TEXT
 sTitle.TextSize = 13
 sTitle.TextXAlignment = Enum.TextXAlignment.Left
 sTitle.Parent = sHeaderLeft
+
+local sVersion = Instance.new("TextLabel")
+sVersion.Size = UDim2.new(0, 40, 1, 0)
+sVersion.BackgroundTransparency = 1
+sVersion.Font = FONT_MONO
+sVersion.Text = "v" .. VERSION
+sVersion.TextColor3 = C_DIM
+sVersion.TextSize = 10
+sVersion.TextXAlignment = Enum.TextXAlignment.Left
+sVersion.Parent = sHeaderLeft
 
 local segControl = Instance.new("Frame")
 segControl.Name = "SegmentedControl"
@@ -960,6 +971,70 @@ local function dumpTree(arg)
 	return table.concat(lines, "\n")
 end
 
+local TEST_RUNNER = [[
+local STS = game:GetService("StudioTestService")
+local LogService = game:GetService("LogService")
+local HttpService = game:GetService("HttpService")
+local args = HttpService:JSONDecode(STS:GetTestArgs())
+local logs, done = {}, false
+LogService.MessageOut:Connect(function(m, t)
+	if t == Enum.MessageType.MessageOutput then table.insert(logs, m)
+	elseif t == Enum.MessageType.MessageWarning then table.insert(logs, "[WARN] " .. m)
+	elseif t == Enum.MessageType.MessageError then table.insert(logs, "[ERROR] " .. m) end
+end)
+local function finish(ok, res)
+	if done then return end
+	done = true
+	STS:EndTest(HttpService:JSONEncode({ ok = ok, result = res ~= nil and tostring(res) or nil, logs = logs }))
+end
+task.delay(args.timeout, function() finish(false, "timeout after " .. args.timeout .. "s") end)
+task.spawn(function()
+	local ok, fn = pcall(require, script.UserTest)
+	local res = fn
+	if ok then ok, res = pcall(fn) end
+	finish(ok, res)
+end)
+]]
+
+local function runTest(arg)
+	local okArg, opts = pcall(function() return HttpService:JSONDecode(arg) end)
+	if not okArg or type(opts) ~= "table" or type(opts.code) ~= "string" then
+		return "ERROR: test needs {code, timeout}"
+	end
+	local timeout = tonumber(opts.timeout) or 20
+	local sss = game:GetService("ServerScriptService")
+	local old = sss:FindFirstChild("__VesperTest")
+	if old then old:Destroy() end
+
+	local runner = Instance.new("Script")
+	runner.Name = "__VesperTest"
+	runner.Source = TEST_RUNNER
+	local mod = Instance.new("ModuleScript")
+	mod.Name = "UserTest"
+	mod.Source = "return function()\n" .. opts.code .. "\nend"
+	mod.Parent = runner
+	runner.Parent = sss
+
+	showToast("Play Test", "Starting...", "info")
+	local ran, raw = pcall(function()
+		return game:GetService("StudioTestService"):ExecutePlayModeAsync(HttpService:JSONEncode({ timeout = timeout }))
+	end)
+	runner:Destroy()
+
+	if not ran then
+		appendLog("FAIL", tostring(raw), C_ROSE)
+		return "ERROR: " .. tostring(raw)
+	end
+	local decOk, r = pcall(function() return HttpService:JSONDecode(raw) end)
+	if not decOk or type(r) ~= "table" then
+		return "ERROR: test ended without a result (stopped early?)"
+	end
+	local out = table.concat(r.logs or {}, "\n")
+	showToast("Play Test", r.ok and "Passed" or "Failed", r.ok and "success" or "error")
+	appendLog(r.ok and "OK" or "FAIL", tostring(r.result or "done"), r.ok and C_EMERALD or C_ROSE)
+	return (r.ok and "PASS" or "FAIL") .. (r.result and (": " .. r.result) or "") .. (out ~= "" and ("\nLOGS:\n" .. out) or "")
+end
+
 local function handleCommand(raw)
 	local ok, data = pcall(function() return HttpService:JSONDecode(raw) end)
 	if not ok or type(data) ~= "table" then
@@ -971,6 +1046,9 @@ local function handleCommand(raw)
 	if data.cmd == "tree" then
 		appendLog("TREE", tostring(data.arg), C_CYAN)
 		return dumpTree(data.arg)
+	elseif data.cmd == "test" then
+		appendLog("TEST", "play mode", C_CYAN)
+		return runTest(data.arg)
 	elseif data.cmd == "run" or data.cmd == "exec" then
 		local preview = string.sub(data.arg or "", 1, 55):gsub("[\n\r]", " ")
 		appendLog("EXEC", preview .. (string.len(data.arg or "") > 55 and "..." or ""), C_VIOLET)
