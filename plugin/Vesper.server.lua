@@ -31,7 +31,7 @@ local T_SPRING = TweenInfo.new(0.24, Enum.EasingStyle.Quart, Enum.EasingDirectio
 local T_FAST   = TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
 local isConnected    = false
-local currentHost    = "http://127.0.0.1"
+local HOST           = "http://127.0.0.1"
 local currentPort    = 8910
 local pollInterval   = 0.2
 local OFFLINE_GRACE  = 30
@@ -237,7 +237,7 @@ brandSub.Parent = brandBox
 
 local formCard = Instance.new("Frame")
 formCard.Name = "FormCard"
-formCard.Size = UDim2.new(1, 0, 0, 140)
+formCard.Size = UDim2.new(1, 0, 0, 76)
 formCard.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
 formCard.BorderSizePixel = 0
 formCard.LayoutOrder = 2
@@ -264,49 +264,6 @@ formLayout.FillDirection = Enum.FillDirection.Vertical
 formLayout.SortOrder = Enum.SortOrder.LayoutOrder
 formLayout.Padding = UDim.new(0, 6)
 formLayout.Parent = formCard
-
--- Host Field
-local hostLabel = Instance.new("TextLabel")
-hostLabel.Name = "HostLabel"
-hostLabel.Size = UDim2.new(1, 0, 0, 14)
-hostLabel.BackgroundTransparency = 1
-hostLabel.Font = FONT_UI
-hostLabel.Text = "HOST / ADDRESS"
-hostLabel.TextColor3 = C_MUTED
-hostLabel.TextSize = 10
-hostLabel.TextXAlignment = Enum.TextXAlignment.Left
-hostLabel.LayoutOrder = 1
-hostLabel.Parent = formCard
-
-local hostInput = Instance.new("TextBox")
-hostInput.Name = "HostInput"
-hostInput.Size = UDim2.new(1, 0, 0, 32)
-hostInput.BackgroundColor3 = Color3.fromRGB(13, 13, 17)
-hostInput.BorderSizePixel = 0
-hostInput.Font = FONT_MONO
-hostInput.Text = currentHost
-hostInput.TextColor3 = C_TEXT
-hostInput.PlaceholderText = "http://127.0.0.1"
-hostInput.PlaceholderColor3 = Color3.fromRGB(132, 132, 145)
-hostInput.TextSize = 12
-hostInput.ClearTextOnFocus = false
-hostInput.TextXAlignment = Enum.TextXAlignment.Left
-hostInput.LayoutOrder = 2
-hostInput.Parent = formCard
-
-local hCorner = Instance.new("UICorner")
-hCorner.CornerRadius = UDim.new(0, 6)
-hCorner.Parent = hostInput
-
-local hStroke = Instance.new("UIStroke")
-hStroke.Color = Color3.fromRGB(48, 48, 62)
-hStroke.Thickness = 1
-hStroke.Parent = hostInput
-
-local hPad = Instance.new("UIPadding")
-hPad.PaddingLeft = UDim.new(0, 10)
-hPad.PaddingRight = UDim.new(0, 10)
-hPad.Parent = hostInput
 
 -- Port Field
 local portLabel = Instance.new("TextLabel")
@@ -1141,10 +1098,10 @@ local function connectToDaemon()
 	isConnecting = true
 	startConnectBtn.Text = "Connecting..."
 	setupStatusLabel.TextColor3 = C_MUTED
-	setupStatusLabel.Text = "Connecting to " .. currentHost .. ":" .. currentPort .. "..."
+	setupStatusLabel.Text = "Connecting to " .. HOST .. ":" .. currentPort .. "..."
 
 	task.spawn(function()
-		local testUrl = string.format("%s:%d/status", currentHost, currentPort)
+		local testUrl = string.format("%s:%d/status", HOST, currentPort)
 		local ok, res = pcall(function()
 			return HttpService:RequestAsync({
 				Url = testUrl,
@@ -1162,7 +1119,7 @@ local function connectToDaemon()
 			switchTab("console")
 
 			setLive(true)
-			connHostValue.Text = currentHost:gsub("^https?://", "") .. ":" .. currentPort
+			connHostValue.Text = HOST:gsub("^https?://", "") .. ":" .. currentPort
 			appendLog("SYS", "Connected to Vesper on port " .. currentPort, C_EMERALD)
 			setupStatusLabel.Text = ""
 		else
@@ -1199,22 +1156,6 @@ end)
 
 disconnectBtn.MouseButton1Click:Connect(function()
 	disconnectFromDaemon()
-end)
-
-hostInput.Focused:Connect(function()
-	hStroke.Color = C_VIOLET
-end)
-
-hostInput.FocusLost:Connect(function()
-	hStroke.Color = Color3.fromRGB(48, 48, 62)
-	local val = hostInput.Text:gsub("%s+", "")
-	if val ~= "" then
-		if not val:find("^https?://") then
-			val = "http://" .. val
-		end
-		currentHost = val
-		hostInput.Text = currentHost
-	end
 end)
 
 portInput.Focused:Connect(function()
@@ -1262,8 +1203,8 @@ end)
 task.spawn(function()
 	while true do
 		if isConnected then
-			local pollUrl = string.format("%s:%d/poll", currentHost, currentPort)
-			local replyUrl = string.format("%s:%d/reply", currentHost, currentPort)
+			local pollUrl = string.format("%s:%d/poll", HOST, currentPort)
+			local replyUrl = string.format("%s:%d/reply", HOST, currentPort)
 
 			local ok, res = pcall(function()
 				return HttpService:RequestAsync({
