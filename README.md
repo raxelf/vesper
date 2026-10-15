@@ -6,6 +6,8 @@
   <p>
     <a href="https://create.roblox.com"><img src="https://img.shields.io/badge/Roblox_Studio-black?style=flat-square" alt="Roblox Studio" /></a>
     &nbsp;&nbsp;
+    <a href="https://www.npmjs.com/package/@raxelf/vesper"><img src="https://img.shields.io/npm/v/@raxelf/vesper?style=flat-square&color=black&label=npm" alt="npm version" /></a>
+    &nbsp;&nbsp;
     <a href="https://nodejs.org"><img src="https://img.shields.io/badge/Runtime-Node_%7C_Bun-black?style=flat-square&logo=node.js&logoColor=white" alt="Runtime" /></a>
     &nbsp;&nbsp;
     <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-black?style=flat-square" alt="MIT" /></a>
