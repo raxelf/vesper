@@ -1078,7 +1078,14 @@ local function takeShot(arg)
 	end
 	if blank then
 		img:Destroy()
-		return "ERROR: the viewport rendered blank. Bring the Studio window to the front and try again."
+		local open = 0
+		pcall(function()
+			for _, doc in ipairs(game:GetService("ScriptEditorService"):GetScriptDocuments()) do
+				if not doc:IsCommandBar() then open += 1 end
+			end
+		end)
+		return "ERROR: the viewport rendered blank. Make sure the 3D scene tab is the active tab in Studio (not a script or Play tab), then try again."
+			.. (open > 0 and string.format(" %d script tab(s) are open.", open) or "")
 	end
 
 	local body = buffer.tostring(buf)

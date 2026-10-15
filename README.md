@@ -109,7 +109,7 @@ vesper run /tmp/build.luau
 | `vesper tree` | `[path] [depth]` | Dumps hierarchy (defaults to `Workspace`, depth 4, max 400 lines). |
 | `vesper run` / `vesper exec` | `<file.luau \| code>` | Executes a Luau file or inline string in Studio (one Ctrl+Z step). |
 | `vesper test` | `<file.luau \| code> [seconds]` | Starts Play mode, runs the script server-side, returns PASS/FAIL and logs, then stops. |
-| `vesper shot` | `[file.png] [--from x,y,z --at x,y,z] [--width n]` | Saves a PNG of the Studio 3D viewport (default `/tmp/vesper-shot.png`, 640 px wide, max 1280). With `--from` and `--at` the camera moves for the shot and is put back afterward. Studio's window must be in front, or the viewport renders blank and the command says so. |
+| `vesper shot` | `[file.png] [--from x,y,z --at x,y,z] [--width n]` | Saves a PNG of the Studio 3D viewport (default `/tmp/vesper-shot.png`, 640 px wide, max 1280). With `--from` and `--at` the camera moves for the shot and is put back afterward. The 3D scene tab must be the active tab in Studio; with a script tab active the viewport renders blank and the command says so. Screenshots are Edit mode only, not during a Play session. |
 | `vesper version` | None | Prints current version string. |
 
 > **Output cap:** `run`, `exec` and `test` print at most 200 lines (first 40 and last 160) so agents don't flood their context. Add `--full` to see everything.
@@ -132,7 +132,7 @@ For Roblox Studio manipulation, use the global CLI `vesper`:
 - `vesper exec "print(...)"` — Run quick inline Luau commands.
 - `vesper test check.luau` — Run a script in a Play session and read PASS/FAIL plus logs.
 - **Rule**: Always batch 3D map/model generation into a single script written to `/tmp/build.luau` and executed via `vesper run /tmp/build.luau`.
-- **Look**: After building or moving things, run `vesper shot /tmp/view.png --from x,y,z --at x,y,z`, then open the PNG to check the result. Studio's window must be in front.
+- **Look**: After building or moving things, run `vesper shot /tmp/view.png --from x,y,z --at x,y,z`, then open the PNG to check the result. The 3D scene tab must be active in Studio.
 - **Verify**: After changing or adding gameplay scripts (anything that runs at game time), write a short check to /tmp/check.luau and run `vesper test /tmp/check.luau`. Read the PASS/FAIL and logs, fix any errors, and rerun until it passes. Skip this for purely visual builds (parts, models, colors); use `vesper tree` to confirm those.
 ```
 
