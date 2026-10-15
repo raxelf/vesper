@@ -4,7 +4,7 @@
   <p><strong>A small bridge between AI agents and Roblox Studio, driven from the command line</strong></p>
 
   <p>
-    <a href="https://create.roblox.com"><img src="https://img.shields.io/badge/Roblox_Studio-black?style=flat-square&logo=roblox&logoColor=white" alt="Roblox Studio" /></a>
+    <a href="https://create.roblox.com"><img src="https://img.shields.io/badge/Roblox_Studio-black?style=flat-square" alt="Roblox Studio" /></a>
     &nbsp;&nbsp;
     <a href="https://nodejs.org"><img src="https://img.shields.io/badge/Runtime-Node_%7C_Bun-black?style=flat-square&logo=node.js&logoColor=white" alt="Runtime" /></a>
     &nbsp;&nbsp;
@@ -139,6 +139,37 @@ For Roblox Studio manipulation, use the global CLI `vesper`:
 
 ---
 
+## Compared with an MCP server
+
+Vesper does three jobs: run Luau, read the hierarchy, and test in a Play session with screenshots. An MCP server for Studio does those and more. The one I measured has 28 tools, including script editing, input simulation and asset generation, none of which Vesper has. If you need those, use an MCP server. The tables below compare only the jobs the two share.
+
+The numbers come from one machine (Linux with Vinegar), one Studio session and one run, in October 2026. Treat them as an example, not a guarantee.
+
+### Context cost
+
+| | Vesper | MCP server |
+|---|---|---|
+| Fixed cost per session | about 244 tokens (the rule block above) | about 15,200 tokens for all 28 tool definitions, about 2,900 for the five that match Vesper's jobs |
+| Run a Luau snippet (command and reply) | about 8 tokens | about 34 tokens |
+| Read the hierarchy (Workspace, depth 1) | about 118 tokens | about 431 tokens |
+| One screenshot | 640×345, about 294 image tokens | 1436×775, about 1,480 image tokens |
+
+Token counts are estimates: text is characters divided by four, images are width times height divided by 750. Some clients load tool definitions only when a tool is first used, which shrinks the fixed cost for an MCP server. The two don't return identical data. Vesper's `run` returns what the script printed as well as its return value, while the MCP tool returned only the return value. Vesper's `tree` includes position, size and colour for every part, and the MCP tool returns paths and relationships as JSON.
+
+### Speed
+
+Round trip from sending a command to receiving the reply, in milliseconds. This leaves out model time.
+
+| | Vesper p50 / p95 / p99 | MCP server p50 / p95 / p99 |
+|---|---|---|
+| Run a Luau snippet | 16 / 20 / 21 | 66 / 69 / 84 |
+| Read the hierarchy | 16 / 19 / 21 | 33 / 50 / 52 |
+| Screenshot | 576 / 631 / 676 | 599 / 648 / 746 |
+
+Each row is 200 calls (40 for screenshots) with 0.4 seconds between calls, after 5 warm-up calls. Vesper was timed over HTTP to its server and the MCP server over stdio. The screenshot times include scaling in Vesper's case and JPEG encoding in the MCP server's case, so they aren't the same work.
+
+Vesper has a rate ceiling. Roblox allows about 500 HTTP requests a minute per Studio, and Vesper spends two on each command, so more than roughly 250 commands a minute gets throttled. In one unpaced run of back-to-back calls, one command stalled for 15 seconds and the plugin lost its connection soon after. An agent that issues a command every few seconds stays far below the limit, but a script that sends hundreds of commands in a loop needs a short delay between them. I saw no throttling from the MCP server in my runs.
+
 ## Architecture
 
 ```mermaid
@@ -159,3 +190,5 @@ flowchart LR
 ## License
 
 [MIT](LICENSE) © raxelf
+
+Vesper is an independent project. It is not affiliated with or endorsed by Roblox.
