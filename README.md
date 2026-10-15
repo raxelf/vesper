@@ -20,7 +20,7 @@ Compared with an MCP server on the jobs they share, Vesper needs about 244 token
 
 ## Requirements
 
-- Roblox Studio on Windows, macOS, or Linux through Vinegar or Wine.
+- Roblox Studio on Windows, macOS, or Linux through Vinegar or Wine. I've tested it on Linux with Vinegar. The macOS and Windows plugin paths are in the code but untested.
 - Node.js 18 or newer (Bun also works).
 - "Allow HTTP Requests" turned on for the place you work in.
 
@@ -83,7 +83,7 @@ Press `Ctrl+Z` in Studio to undo the cube.
 
 ### Testing a running game
 
-Inside a `vesper test` script, call `shot("name")` to save a screenshot of the running game to `/tmp/vesper-shots/name.png`. The paths are printed under SCREENSHOTS. A script can walk a character to a part, check where it ended up, and take a picture:
+Inside a `vesper test` script, call `shot("name")` to save a screenshot of the running game to `vesper-shots/name.png` in your system temp folder (`/tmp/vesper-shots` on Linux). The paths are printed under SCREENSHOTS. A script can walk a character to a part, check where it ended up, and take a picture:
 
 ```lua
 local hum = game.Players:GetPlayers()[1].Character.Humanoid
