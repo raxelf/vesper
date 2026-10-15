@@ -69,14 +69,22 @@ pcall(function()
 	toastGui.Parent = CoreGui
 end)
 
-local activeToasts = 0
+local liveToasts = {}
+
+local function slotY(i)
+	return -56 - (i - 1) * 54
+end
+
+local function layoutToasts()
+	for i, t in ipairs(liveToasts) do
+		TweenService:Create(t, T_SPRING, { Position = UDim2.new(1, -276, 1, slotY(i)) }):Play()
+	end
+end
 
 local function showToast(title, msg, toastType)
 	if not toastGui then return end
 
-	activeToasts = activeToasts + 1
-	local currentSlot = activeToasts
-	local yOffset = -56 - ((currentSlot - 1) * 54)
+	local yOffset = slotY(#liveToasts + 1)
 	local iconColor = toastType == "success" and C_EMERALD or (toastType == "error" and C_ROSE or C_VIOLET)
 
 	local toast = Instance.new("Frame")
@@ -146,17 +154,17 @@ local function showToast(title, msg, toastType)
 	msgLbl.ZIndex = 12
 	msgLbl.Parent = textFrame
 
-	local targetPos = UDim2.new(1, -276, 1, yOffset)
-	TweenService:Create(toast, T_SPRING, { Position = targetPos }):Play()
+	table.insert(liveToasts, toast)
+	layoutToasts()
 
-	task.delay(2.6, function()
-		local exitPos = UDim2.new(1, 20, 1, yOffset)
-		local exitTween = TweenService:Create(toast, T_SPRING, { Position = exitPos })
+	local life = toastType == "error" and 6 or 2.2
+	task.delay(life, function()
+		local idx = table.find(liveToasts, toast)
+		if idx then table.remove(liveToasts, idx) end
+		local exitTween = TweenService:Create(toast, T_SPRING, { Position = UDim2.new(1, 20, 1, toast.Position.Y.Offset) })
 		exitTween:Play()
-		exitTween.Completed:Connect(function()
-			toast:Destroy()
-			activeToasts = math.max(0, activeToasts - 1)
-		end)
+		exitTween.Completed:Connect(function() toast:Destroy() end)
+		layoutToasts()
 	end)
 end
 
