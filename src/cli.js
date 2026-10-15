@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
-const VERSION = "0.3.0";
+const VERSION = "0.3.1";
 const PORT = parseInt(process.env.VESPER_PORT || "8910", 10);
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 

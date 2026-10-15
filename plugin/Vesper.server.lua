@@ -1,4 +1,4 @@
-local VERSION = "0.3.0"
+local VERSION = "0.3.1"
 local ICON_ASSET_ID = "rbxassetid://83778785092785"
 
 local RunService = game:GetService("RunService")
