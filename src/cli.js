@@ -4,7 +4,7 @@ import { existsSync, readFileSync, copyFileSync, mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
-const VERSION = "0.1.0";
+const VERSION = "0.2.0";
 const PORT = parseInt(process.env.VESPER_PORT || "8910", 10);
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 
