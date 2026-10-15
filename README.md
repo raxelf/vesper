@@ -104,9 +104,8 @@ vesper run /tmp/build.luau
 | `vesper serve` | None | Starts bridge server in foreground on port `8910` (`Ctrl+C` to stop). |
 | `vesper status` | None | Checks if server is running and Roblox Studio is connected. |
 | `vesper tree` | `[path] [depth]` | Dumps hierarchy (defaults to `Workspace`, depth 4, max 400 lines). |
-| `vesper run` | `<file.luau \| code>` | Executes batch Luau builder script in Studio. |
+| `vesper run` / `vesper exec` | `<file.luau \| code>` | Executes a Luau file or inline string in Studio (one Ctrl+Z step). |
 | `vesper test` | `<file.luau \| code> [seconds]` | Starts Play mode, runs the script server-side, returns PASS/FAIL and logs, then stops. |
-| `vesper exec` | `"<code/>"` | Executes inline Luau string in Studio. |
 | `vesper version` | None | Prints current version string. |
 
 > **Note:** Run `vesper serve` in a terminal when developing. Press `Ctrl+C` anytime to stop the server cleanly. The server listens on `127.0.0.1` only and rejects requests from browser pages.
@@ -137,13 +136,13 @@ For Roblox Studio manipulation, use the global CLI `vesper`:
 ```mermaid
 flowchart LR
     A["AI Agent / Terminal"] -->|CLI Commands| B["Vesper Server :8910"]
-    B <-->|HTTP Long-Polling| C["Vesper Studio Plugin"]
+    B <-->|HTTP Polling| C["Vesper Studio Plugin"]
     C -->|loadstring + pcall| D["Roblox Studio (Edit)"]
     D -->|ChangeHistoryService| E["Undo / Redo (Edit Mode)"]
     D -->|CoreGui Overlay| F["Sliding Toast Notifications"]
 ```
 
-1. **Lightweight Server (`node:http`):** Binds to `127.0.0.1:8910`, queues client requests (`/cmd`), and serves long-polling workers (`/poll`).
+1. **Lightweight Server (`node:http`):** Binds to `127.0.0.1:8910`, queues client requests (`/cmd`), and answers the plugin's polls (`/poll`).
 2. **Studio Plugin (`Vesper.server.lua`):** Polls the server asynchronously inside Studio, unpacks instructions, executes them (with `ChangeHistoryService` recordings in Edit mode), and posts results back (`/reply`).
 3. **In-Viewport Toasts:** Studio viewport displays sliding status notifications confirming applied changes without requiring the developer to look at the output window.
 

@@ -12,16 +12,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 function findPluginFile() {
-  const candidates = [
-    join(__dirname, "../plugin/Vesper.server.lua"),
-    join(__dirname, "plugin/Vesper.server.lua"),
-    join(process.cwd(), "plugin/Vesper.server.lua"),
-    join(process.cwd(), "vesper/plugin/Vesper.server.lua"),
-  ];
-  for (const c of candidates) {
-    if (existsSync(c)) return c;
-  }
-  return null;
+  const p = join(__dirname, "../plugin/Vesper.server.lua");
+  return existsSync(p) ? p : null;
 }
 
 function installPlugin() {
@@ -280,7 +272,7 @@ async function main() {
     return;
   }
 
-  if (subcmd === "setup" || subcmd === "install-plugin") {
+  if (subcmd === "setup") {
     installPlugin();
     return;
   }

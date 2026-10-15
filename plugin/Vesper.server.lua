@@ -22,16 +22,9 @@ local C_EMERALD    = Color3.fromRGB(52, 211, 153)
 local C_EMERALD_BG = Color3.fromRGB(18, 42, 32)
 local C_ROSE       = Color3.fromRGB(248, 113, 113)
 
-local function pickFont(preferred, fallback)
-	local ok = pcall(function()
-		local _ = preferred.Name
-	end)
-	return ok and preferred or fallback
-end
-
-local FONT_DISPLAY = pickFont(Enum.Font.BuilderSansBold, Enum.Font.SourceSansBold)
-local FONT_UI      = pickFont(Enum.Font.BuilderSansMedium, Enum.Font.SourceSansSemibold)
-local FONT_REG     = pickFont(Enum.Font.BuilderSans, Enum.Font.SourceSans)
+local FONT_DISPLAY = Enum.Font.BuilderSansBold
+local FONT_UI      = Enum.Font.BuilderSansMedium
+local FONT_REG     = Enum.Font.BuilderSans
 local FONT_MONO    = Enum.Font.RobotoMono
 
 local T_SPRING = TweenInfo.new(0.24, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
@@ -42,7 +35,6 @@ local currentHost    = "http://127.0.0.1"
 local currentPort    = 8910
 local pollInterval   = 0.2
 local undoEnabled    = true
-local currentTab     = "console"
 
 local toolbar = plugin:CreateToolbar("Vesper")
 local toggleBtn = toolbar:CreateButton("Vesper", "Vesper AI Bridge", ICON_ASSET_ID)
@@ -870,7 +862,6 @@ discStroke.Thickness = 1
 discStroke.Parent = disconnectBtn
 
 local function switchTab(tabName)
-	currentTab = tabName
 	if tabName == "console" then
 		termView.Visible = true
 		prefsOverlay.Visible = false
