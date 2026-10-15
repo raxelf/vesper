@@ -1,7 +1,7 @@
 <div align="center">
   <img src="assets/vesper.svg" width="84" height="84" alt="Vesper Logo" />
   <h1>VESPER</h1>
-  <p><strong>Fast, zero-friction Roblox Studio bridge for AI pair programmers and Luau automation</strong></p>
+  <p><strong>A small bridge between AI agents and Roblox Studio, driven from the command line</strong></p>
 
   <p>
     <a href="https://create.roblox.com"><img src="https://img.shields.io/badge/Roblox_Studio-black?style=flat-square&logo=roblox&logoColor=white" alt="Roblox Studio" /></a>
@@ -16,7 +16,9 @@
 
 Vesper connects AI pair programmers (Antigravity, Claude Code, Cursor, Windsurf, Aider) and CLI scripts directly to **Roblox Studio**. 
 
-It runs batch Luau builders, inspects the hierarchy, and applies world geometry with native `Ctrl+Z` undo/redo tracking (`ChangeHistoryService`) in Edit Mode, plus live runtime inspection during Play Mode.
+It runs batch Luau builders and dumps the hierarchy in Edit Mode, with each run recorded as one `Ctrl+Z` step (`ChangeHistoryService`). `vesper test` runs a script in a Play session and returns PASS/FAIL with the game's logs, so an agent can check its own work.
+
+Because it's a plain CLI, it adds no tool schemas to an agent's context, unlike an MCP server.
 
 Built for Roblox developers building games on **Linux (Vinegar/Wine)**, **macOS**, and **Windows**.
 
@@ -75,7 +77,7 @@ If you prefer manual copying, place `plugin/Vesper.server.lua` into:
 ### 3. Connect Studio
 
 1. In Roblox Studio, open **Home** → **Game Settings** → **Security** and toggle **Allow HTTP Requests** ON.
-2. In the **Plugins** ribbon, click the **Vesper** button and click **Connect**.
+2. In the **Plugins** ribbon, click the **Vesper** button and click **Connect to Bridge**.
 3. Done! Run commands from your terminal or AI coding agent:
 
 ```bash
@@ -107,7 +109,7 @@ vesper run /tmp/build.luau
 | `vesper exec` | `"<code/>"` | Executes inline Luau string in Studio. |
 | `vesper version` | None | Prints current version string. |
 
-> **Note:** Run `vesper serve` in a terminal when developing. Press `Ctrl+C` anytime to stop the server cleanly.
+> **Note:** Run `vesper serve` in a terminal when developing. Press `Ctrl+C` anytime to stop the server cleanly. The server listens on `127.0.0.1` only and rejects requests from browser pages.
 
 ---
 
@@ -123,6 +125,7 @@ For Roblox Studio manipulation, use the global CLI `vesper`:
 - `vesper tree Workspace` — Inspect 3D world hierarchy, positions, sizes, and colors.
 - `vesper run /tmp/build.luau` — Execute a batch Luau builder script in Studio.
 - `vesper exec "print(...)"` — Run quick inline Luau commands.
+- `vesper test check.luau` — Run a script in a Play session and read PASS/FAIL plus logs.
 - **Rule**: Always batch 3D map/model generation into a single script written to `/tmp/build.luau` and executed via `vesper run /tmp/build.luau`.
 ```
 
@@ -134,7 +137,7 @@ For Roblox Studio manipulation, use the global CLI `vesper`:
 flowchart LR
     A["AI Agent / Terminal"] -->|CLI Commands| B["Vesper Server :8910"]
     B <-->|HTTP Long-Polling| C["Vesper Studio Plugin"]
-    C -->|loadstring + pcall| D["Roblox Studio (Edit / Play)"]
+    C -->|loadstring + pcall| D["Roblox Studio (Edit)"]
     D -->|ChangeHistoryService| E["Undo / Redo (Edit Mode)"]
     D -->|CoreGui Overlay| F["Sliding Toast Notifications"]
 ```
