@@ -1,6 +1,6 @@
 {
   "name": "@raxelf/vesper",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Fast Roblox Studio AI Bridge",
   "type": "module",
   "main": "src/cli.js",
