@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import http from "node:http";
-import { existsSync, readFileSync, copyFileSync, mkdirSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, copyFileSync, mkdirSync } from "node:fs";
+import { deflateSync } from "node:zlib";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -76,9 +78,9 @@ function installPlugin() {
 
 function readBody(req) {
   return new Promise((resolve) => {
-    let data = "";
-    req.on("data", chunk => { data += chunk; });
-    req.on("end", () => resolve(data));
+    const chunks = [];
+    req.on("data", (chunk) => chunks.push(chunk));
+    req.on("end", () => resolve(Buffer.concat(chunks)));
   });
 }
 
@@ -136,8 +138,9 @@ function runServer() {
     if (url.pathname === "/reply" && req.method === "POST") {
       lastPollTime = Date.now();
       const body = await readBody(req);
+      const format = req.headers["x-vesper-format"];
       if (currentCmd && req.headers["x-vesper-id"] === currentCmd.id) {
-        currentCmd.resolve(body);
+        currentCmd.resolve(format ? { format, body } : body.toString());
         currentCmd = null;
       }
       res.writeHead(200, { "Content-Type": "text/plain" });
@@ -147,7 +150,7 @@ function runServer() {
 
     if (url.pathname === "/cmd" && req.method === "POST") {
       try {
-        const bodyText = await readBody(req);
+        const bodyText = (await readBody(req)).toString();
         const { cmd, arg, timeout = 35000 } = JSON.parse(bodyText);
 
         const cmdObj = {
@@ -155,9 +158,13 @@ function runServer() {
           cmd,
           arg: arg || "",
           resolve: (result) => {
-            if (!res.writableEnded) {
+            if (res.writableEnded) return;
+            if (typeof result === "string") {
               res.writeHead(200, { "Content-Type": "text/plain" });
               res.end(result);
+            } else {
+              res.writeHead(200, { "Content-Type": "application/octet-stream", "X-Vesper-Format": result.format });
+              res.end(result.body);
             }
           }
         };
@@ -242,7 +249,55 @@ async function sendCmd(cmd, arg, timeout) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ cmd, arg, timeout })
   });
+  const format = res.headers.get("x-vesper-format");
+  if (format) return { format, body: Buffer.from(await res.arrayBuffer()) };
   return await res.text();
+}
+
+const CRC_TABLE = Array.from({ length: 256 }, (_, n) => {
+  let c = n;
+  for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+  return c >>> 0;
+});
+
+function crc32(buf) {
+  let c = 0xffffffff;
+  for (const b of buf) c = CRC_TABLE[(c ^ b) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+function pngChunk(type, data) {
+  const head = Buffer.alloc(8);
+  head.writeUInt32BE(data.length, 0);
+  head.write(type, 4, "ascii");
+  const tail = Buffer.alloc(4);
+  tail.writeUInt32BE(crc32(Buffer.concat([head.subarray(4), data])), 0);
+  return Buffer.concat([head, data, tail]);
+}
+
+// Studio hands back raw RGBA; write it as an RGB PNG (alpha dropped).
+function rgbaToPng(width, height, rgba) {
+  const rows = Buffer.alloc(height * (1 + width * 3));
+  for (let y = 0; y < height; y++) {
+    const o = y * (1 + width * 3);
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4;
+      rows[o + 1 + x * 3] = rgba[i];
+      rows[o + 2 + x * 3] = rgba[i + 1];
+      rows[o + 3 + x * 3] = rgba[i + 2];
+    }
+  }
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8; // bit depth
+  ihdr[9] = 2; // RGB
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    pngChunk("IHDR", ihdr),
+    pngChunk("IDAT", deflateSync(rows)),
+    pngChunk("IEND", Buffer.alloc(0)),
+  ]);
 }
 
 const MAX_LINES = 200;
@@ -307,6 +362,7 @@ Usage:
   vesper run <file.luau|code>  Execute batch Luau builder script in Studio
   vesper exec "<code/>"        Execute inline Luau commands
   vesper test <file|code> [s]  Run Luau in a Play session (default 20s), print PASS/FAIL + logs
+  vesper shot [file]           Save a viewport screenshot as PNG (--from x,y,z --at x,y,z --width n)
   vesper version               Print current version
 
 run, exec and test show at most 200 lines of output; add --full to see all of it.`);
@@ -317,6 +373,31 @@ run, exec and test show at most 200 lines of output; add --full to see all of it
     const path = args[0] || "Workspace";
     const out = await sendCmd("tree", JSON.stringify({ path, depth: parseInt(args[1] || "4", 10) }));
     console.log(out);
+    return;
+  }
+
+  if (subcmd === "shot") {
+    const flag = (name) => {
+      const i = args.indexOf(name);
+      return i === -1 ? undefined : args.splice(i, 2)[1];
+    };
+    const vec = (v) => v && v.split(",").map(Number);
+    const from = vec(flag("--from"));
+    const at = vec(flag("--at"));
+    const width = flag("--width");
+    const file = args[0] || join(tmpdir(), "vesper-shot.png");
+    if ((from || at) && !(from?.length === 3 && at?.length === 3 && [...from, ...at].every(Number.isFinite))) {
+      console.error("Error: --from and --at both need x,y,z, e.g.: vesper shot --from 0,20,40 --at 0,5,0");
+      process.exit(1);
+    }
+    const out = await sendCmd("shot", JSON.stringify({ from, at, width: width && Number(width) }), 30000);
+    if (typeof out === "string") {
+      console.log(out);
+      process.exit(1);
+    }
+    const [, w, h] = out.format.match(/^rgba:(\d+)x(\d+)$/) || [];
+    writeFileSync(file, rgbaToPng(+w, +h, out.body));
+    console.log(`Saved ${w}x${h} screenshot: ${file}`);
     return;
   }
 

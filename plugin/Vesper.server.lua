@@ -1014,6 +1014,79 @@ local function runTest(arg)
 	return (r.ok and "PASS" or "FAIL") .. (r.result and (": " .. r.result) or "") .. (out ~= "" and ("\nLOGS:\n" .. out) or "")
 end
 
+local function takeShot(arg)
+	local okArg, opts = pcall(function() return HttpService:JSONDecode(arg) end)
+	if not okArg or type(opts) ~= "table" then opts = {} end
+
+	local cam = workspace.CurrentCamera
+	local savedCf, savedFocus = cam and cam.CFrame, cam and cam.Focus
+	local moved = cam and type(opts.from) == "table" and type(opts.at) == "table"
+	if moved then
+		local at = Vector3.new(unpack(opts.at))
+		cam.CFrame = CFrame.lookAt(Vector3.new(unpack(opts.from)), at)
+		cam.Focus = CFrame.new(at)
+		task.wait(0.5) -- let the viewport render the new camera
+	end
+	if toastGui then toastGui.Enabled = false end -- keep our own toasts out of the picture
+
+	local got
+	local capOk, capErr = pcall(function()
+		game:GetService("CaptureService"):CaptureScreenshot(function(id) got = id end)
+	end)
+	local t = os.clock()
+	while capOk and got == nil and os.clock() - t < 5 do task.wait(0.05) end
+	if toastGui then toastGui.Enabled = true end
+	if moved then
+		cam.CFrame = savedCf
+		cam.Focus = savedFocus
+	end
+	if not capOk then return "ERROR: capture failed: " .. tostring(capErr) end
+	if not got then return "ERROR: capture timed out" end
+
+	local imgOk, img = pcall(function()
+		return game:GetService("AssetService"):CreateEditableImageAsync(Content.fromUri(got))
+	end)
+	if not imgOk then return "ERROR: cannot read screenshot: " .. tostring(img) end
+
+	-- the full viewport is several MB; scale down so one HTTP reply carries it
+	local width = math.clamp(tonumber(opts.width) or 640, 64, 1280)
+	local size = img.Size
+	if size.X > width then
+		-- EditableImage has no resize: draw it scaled onto a smaller one
+		local target = Vector2.new(width, math.max(1, math.floor(size.Y * width / size.X)))
+		local small = game:GetService("AssetService"):CreateEditableImage({ Size = target })
+		local s = target.X / size.X
+		small:DrawImageTransformed(target / 2, Vector2.new(s, s), 0, img, { CombineType = Enum.ImageCombineType.Overwrite })
+		img:Destroy()
+		img = small
+		size = img.Size
+	end
+	local buf = img:ReadPixelsBuffer(Vector2.zero, size)
+
+	-- a hidden or minimized Studio window renders the 3D view as one flat colour
+	local function px(x, y)
+		local o = (math.floor(y) * size.X + math.floor(x)) * 4
+		return buffer.readu8(buf, o), buffer.readu8(buf, o + 1), buffer.readu8(buf, o + 2)
+	end
+	local r0, g0, b0 = px(size.X * 0.5, size.Y * 0.5)
+	local blank = true
+	for gx = 1, 8 do
+		for gy = 1, 8 do
+			local r, g, b = px(size.X * gx / 9, size.Y * gy / 9)
+			if math.abs(r - r0) + math.abs(g - g0) + math.abs(b - b0) > 12 then blank = false end
+		end
+	end
+	if blank then
+		img:Destroy()
+		return "ERROR: the viewport rendered blank. Bring the Studio window to the front and try again."
+	end
+
+	local body = buffer.tostring(buf)
+	img:Destroy()
+	appendLog("SHOT", string.format("%dx%d", size.X, size.Y), C_VIOLET)
+	return { format = string.format("rgba:%dx%d", size.X, size.Y), body = body }
+end
+
 local function handleCommand(raw)
 	local ok, data = pcall(function() return HttpService:JSONDecode(raw) end)
 	if not ok or type(data) ~= "table" then
@@ -1025,6 +1098,8 @@ local function handleCommand(raw)
 	if data.cmd == "tree" then
 		appendLog("TREE", tostring(data.arg), C_MUTED)
 		return dumpTree(data.arg)
+	elseif data.cmd == "shot" then
+		return takeShot(data.arg)
 	elseif data.cmd == "test" then
 		appendLog("TEST", "play mode", C_VIOLET)
 		return runTest(data.arg)
@@ -1223,16 +1298,24 @@ task.spawn(function()
 					local idOk, idData = pcall(function() return HttpService:JSONDecode(res.Body) end)
 					local cmdId = idOk and type(idData) == "table" and idData.id or ""
 					local cmdOk, cmdResult = pcall(handleCommand, res.Body)
-					local finalReply = cmdOk and tostring(cmdResult) or ("ERROR: " .. tostring(cmdResult))
+					local headers = { ["Content-Type"] = "text/plain", ["X-Vesper-Id"] = tostring(cmdId) }
+					local finalReply
+					if cmdOk and type(cmdResult) == "table" then
+						headers["X-Vesper-Format"] = cmdResult.format
+						finalReply = cmdResult.body
+					else
+						finalReply = cmdOk and tostring(cmdResult) or ("ERROR: " .. tostring(cmdResult))
+					end
 
-					pcall(function()
+					local replyOk, replyErr = pcall(function()
 						HttpService:RequestAsync({
 							Url = replyUrl,
 							Method = "POST",
-							Headers = { ["Content-Type"] = "text/plain", ["X-Vesper-Id"] = tostring(cmdId) },
+							Headers = headers,
 							Body = finalReply,
 						})
 					end)
+					if not replyOk then appendLog("ERR", "Reply failed: " .. tostring(replyErr), C_ROSE) end
 				end
 			else
 				if isConnected then

@@ -16,7 +16,7 @@
 
 Vesper connects AI pair programmers (Antigravity, Claude Code, Cursor, Windsurf, Aider) and CLI scripts directly to **Roblox Studio**. 
 
-It runs batch Luau builders and dumps the hierarchy in Edit Mode, with each run recorded as one `Ctrl+Z` step (`ChangeHistoryService`). `vesper test` runs a script in a Play session and returns PASS/FAIL with the game's logs, so an agent can check its own work.
+It runs batch Luau builders and dumps the hierarchy in Edit Mode, with each run recorded as one `Ctrl+Z` step (`ChangeHistoryService`). `vesper test` runs a script in a Play session and returns PASS/FAIL with the game's logs, so an agent can check its own work, and `vesper shot` saves a screenshot of the viewport so it can see what it built.
 
 Because it's a plain CLI, it adds no tool schemas to an agent's context, unlike an MCP server.
 
@@ -87,6 +87,9 @@ vesper tree Workspace 3
 # Run Luau in a Play session; prints PASS/FAIL plus game logs (default timeout 20s)
 vesper test check.luau 30
 
+# Save a PNG of the Studio viewport, optionally from a chosen camera
+vesper shot /tmp/view.png --from 25,18,25 --at 0,7,0
+
 # Execute Luau directly in Studio
 vesper exec "Instance.new('Part', workspace).Name = 'VesperCube'"
 
@@ -106,6 +109,7 @@ vesper run /tmp/build.luau
 | `vesper tree` | `[path] [depth]` | Dumps hierarchy (defaults to `Workspace`, depth 4, max 400 lines). |
 | `vesper run` / `vesper exec` | `<file.luau \| code>` | Executes a Luau file or inline string in Studio (one Ctrl+Z step). |
 | `vesper test` | `<file.luau \| code> [seconds]` | Starts Play mode, runs the script server-side, returns PASS/FAIL and logs, then stops. |
+| `vesper shot` | `[file.png] [--from x,y,z --at x,y,z] [--width n]` | Saves a PNG of the Studio 3D viewport (default `/tmp/vesper-shot.png`, 640 px wide, max 1280). With `--from` and `--at` the camera moves for the shot and is put back afterward. Studio's window must be in front, or the viewport renders blank and the command says so. |
 | `vesper version` | None | Prints current version string. |
 
 > **Output cap:** `run`, `exec` and `test` print at most 200 lines (first 40 and last 160) so agents don't flood their context. Add `--full` to see everything.
@@ -128,6 +132,7 @@ For Roblox Studio manipulation, use the global CLI `vesper`:
 - `vesper exec "print(...)"` — Run quick inline Luau commands.
 - `vesper test check.luau` — Run a script in a Play session and read PASS/FAIL plus logs.
 - **Rule**: Always batch 3D map/model generation into a single script written to `/tmp/build.luau` and executed via `vesper run /tmp/build.luau`.
+- **Look**: After building or moving things, run `vesper shot /tmp/view.png --from x,y,z --at x,y,z`, then open the PNG to check the result. Studio's window must be in front.
 - **Verify**: After changing or adding gameplay scripts (anything that runs at game time), write a short check to /tmp/check.luau and run `vesper test /tmp/check.luau`. Read the PASS/FAIL and logs, fix any errors, and rerun until it passes. Skip this for purely visual builds (parts, models, colors); use `vesper tree` to confirm those.
 ```
 
