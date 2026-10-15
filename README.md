@@ -108,6 +108,8 @@ vesper run /tmp/build.luau
 | `vesper test` | `<file.luau \| code> [seconds]` | Starts Play mode, runs the script server-side, returns PASS/FAIL and logs, then stops. |
 | `vesper version` | None | Prints current version string. |
 
+> **Output cap:** `run`, `exec` and `test` print at most 200 lines (first 40 and last 160) so agents don't flood their context. Add `--full` to see everything.
+
 > **Note:** Run `vesper serve` in a terminal when developing. Press `Ctrl+C` anytime to stop the server cleanly. The server listens on `127.0.0.1` only and rejects requests from browser pages.
 
 ---

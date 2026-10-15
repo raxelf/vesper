@@ -245,8 +245,22 @@ async function sendCmd(cmd, arg, timeout) {
   return await res.text();
 }
 
+const MAX_LINES = 200;
+
+// Keep the start and the end (errors usually land last) so agent context stays small.
+function capOutput(text, full) {
+  const lines = text.replace(/\n$/, "").split("\n");
+  if (full || lines.length <= MAX_LINES) return text;
+  const head = lines.slice(0, 40);
+  const tail = lines.slice(-(MAX_LINES - 40));
+  const omitted = lines.length - MAX_LINES;
+  return [...head, `... ${omitted} lines omitted, rerun with --full to see everything ...`, ...tail].join("\n");
+}
+
 async function main() {
-  const [,, subcmd, ...args] = process.argv;
+  const [,, subcmd, ...rawArgs] = process.argv;
+  const full = rawArgs.includes("--full");
+  const args = rawArgs.filter((a) => a !== "--full");
 
   if (subcmd === "serve") {
     runServer();
@@ -293,7 +307,9 @@ Usage:
   vesper run <file.luau|code>  Execute batch Luau builder script in Studio
   vesper exec "<code/>"        Execute inline Luau commands
   vesper test <file|code> [s]  Run Luau in a Play session (default 20s), print PASS/FAIL + logs
-  vesper version               Print current version`);
+  vesper version               Print current version
+
+run, exec and test show at most 200 lines of output; add --full to see all of it.`);
     process.exit(0);
   }
 
@@ -314,7 +330,7 @@ Usage:
     }
     if (existsSync(code)) code = readFileSync(code, "utf8");
     const out = await sendCmd("test", JSON.stringify({ code, timeout }), (timeout + 60) * 1000);
-    console.log(out);
+    console.log(capOutput(out, full));
     return;
   }
 
@@ -328,7 +344,7 @@ Usage:
       code = readFileSync(code, "utf8");
     }
     const out = await sendCmd("run", code);
-    console.log(out);
+    console.log(capOutput(out, full));
     return;
   }
 
