@@ -127,6 +127,7 @@ For Roblox Studio manipulation, use the global CLI `vesper`:
 - `vesper exec "print(...)"` — Run quick inline Luau commands.
 - `vesper test check.luau` — Run a script in a Play session and read PASS/FAIL plus logs.
 - **Rule**: Always batch 3D map/model generation into a single script written to `/tmp/build.luau` and executed via `vesper run /tmp/build.luau`.
+- **Verify**: After changing or adding gameplay scripts (anything that runs at game time), write a short check to /tmp/check.luau and run `vesper test /tmp/check.luau`. Read the PASS/FAIL and logs, fix any errors, and rerun until it passes. Skip this for purely visual builds (parts, models, colors); use `vesper tree` to confirm those.
 ```
 
 ---
