@@ -15,12 +15,12 @@ local C_BORDER     = Color3.fromRGB(44, 44, 54)
 local C_DIVIDER    = Color3.fromRGB(36, 36, 44)
 local C_TEXT       = Color3.fromRGB(245, 245, 247)
 local C_MUTED      = Color3.fromRGB(154, 154, 166)
-local C_DIM        = Color3.fromRGB(105, 105, 116)
+local C_DIM        = Color3.fromRGB(132, 132, 145)
 local C_VIOLET     = Color3.fromRGB(139, 92, 246)
-local C_CYAN       = Color3.fromRGB(34, 211, 238)
 local C_EMERALD    = Color3.fromRGB(52, 211, 153)
 local C_EMERALD_BG = Color3.fromRGB(18, 42, 32)
 local C_ROSE       = Color3.fromRGB(248, 113, 113)
+local C_ROSE_BG    = Color3.fromRGB(48, 22, 22)
 
 local FONT_DISPLAY = Enum.Font.BuilderSansBold
 local FONT_UI      = Enum.Font.BuilderSansMedium
@@ -34,6 +34,7 @@ local isConnected    = false
 local currentHost    = "http://127.0.0.1"
 local currentPort    = 8910
 local pollInterval   = 0.2
+local OFFLINE_GRACE  = 30
 local undoEnabled    = true
 
 local toolbar = plugin:CreateToolbar("Vesper")
@@ -278,7 +279,7 @@ hostInput.Font = FONT_MONO
 hostInput.Text = currentHost
 hostInput.TextColor3 = C_TEXT
 hostInput.PlaceholderText = "http://127.0.0.1"
-hostInput.PlaceholderColor3 = Color3.fromRGB(110, 110, 125)
+hostInput.PlaceholderColor3 = Color3.fromRGB(132, 132, 145)
 hostInput.TextSize = 12
 hostInput.ClearTextOnFocus = false
 hostInput.TextXAlignment = Enum.TextXAlignment.Left
@@ -321,7 +322,7 @@ portInput.Font = FONT_MONO
 portInput.Text = tostring(currentPort)
 portInput.TextColor3 = C_TEXT
 portInput.PlaceholderText = "8910"
-portInput.PlaceholderColor3 = Color3.fromRGB(110, 110, 125)
+portInput.PlaceholderColor3 = Color3.fromRGB(132, 132, 145)
 portInput.TextSize = 12
 portInput.ClearTextOnFocus = false
 portInput.TextXAlignment = Enum.TextXAlignment.Left
@@ -522,8 +523,8 @@ termTop.BackgroundTransparency = 1
 termTop.Parent = termView
 
 local livePill = Instance.new("Frame")
-livePill.Size = UDim2.new(0, 96, 0, 20)
-livePill.Position = UDim2.new(0, 0, 0, 0)
+livePill.Size = UDim2.new(0, 0, 0, 20)
+livePill.AutomaticSize = Enum.AutomaticSize.X
 livePill.BackgroundColor3 = C_EMERALD_BG
 livePill.BorderSizePixel = 0
 livePill.Parent = termTop
@@ -532,9 +533,20 @@ local lCorner = Instance.new("UICorner")
 lCorner.CornerRadius = UDim.new(1, 0)
 lCorner.Parent = livePill
 
+local lPad = Instance.new("UIPadding")
+lPad.PaddingLeft = UDim.new(0, 9)
+lPad.PaddingRight = UDim.new(0, 10)
+lPad.Parent = livePill
+
+local lLayout = Instance.new("UIListLayout")
+lLayout.FillDirection = Enum.FillDirection.Horizontal
+lLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+lLayout.Padding = UDim.new(0, 6)
+lLayout.Parent = livePill
+
 local lDot = Instance.new("Frame")
 lDot.Size = UDim2.new(0, 6, 0, 6)
-lDot.Position = UDim2.new(0, 8, 0.5, -3)
+lDot.LayoutOrder = 1
 lDot.BackgroundColor3 = C_EMERALD
 lDot.BorderSizePixel = 0
 lDot.Parent = livePill
@@ -544,8 +556,9 @@ lDotCorner.CornerRadius = UDim.new(1, 0)
 lDotCorner.Parent = lDot
 
 local liveText = Instance.new("TextLabel")
-liveText.Size = UDim2.new(1, -20, 1, 0)
-liveText.Position = UDim2.new(0, 18, 0, 0)
+liveText.Size = UDim2.new(0, 0, 1, 0)
+liveText.AutomaticSize = Enum.AutomaticSize.X
+liveText.LayoutOrder = 2
 liveText.BackgroundTransparency = 1
 liveText.Font = FONT_MONO
 liveText.Text = "PORT 8910"
@@ -861,6 +874,18 @@ discStroke.Color = C_BORDER
 discStroke.Thickness = 1
 discStroke.Parent = disconnectBtn
 
+local linkLost = false
+local lostSince = 0
+local function setLive(live)
+	linkLost = not live
+	if linkLost then lostSince = os.clock() end
+	livePill.BackgroundColor3 = live and C_EMERALD_BG or C_ROSE_BG
+	lDot.BackgroundColor3 = live and C_EMERALD or C_ROSE
+	liveText.TextColor3 = live and C_EMERALD or C_ROSE
+	liveText.Text = live and ("PORT " .. currentPort) or "OFFLINE"
+	disconnectBtn.Text = live and "Disconnect Bridge" or "Stop Reconnecting"
+end
+
 local function switchTab(tabName)
 	if tabName == "console" then
 		termView.Visible = true
@@ -905,7 +930,7 @@ local function appendLog(prefix, msg, color)
 	local timeStr = os.date("%H:%M:%S")
 
 	local escapedMsg = tostring(msg):gsub("&", "&amp;"):gsub("<", "&lt;"):gsub(">", "&gt;"):gsub('"', "&quot;"):gsub("'", "&apos;")
-	line.Text = string.format("<font color=\"#696974\">[%s]</font> <font color=\"%s\"><b>%s</b></font> <font color=\"#E4E4E7\">%s</font>",
+	line.Text = string.format("<font color=\"#848491\">[%s]</font> <font color=\"%s\"><b>%s</b></font> <font color=\"#E4E4E7\">%s</font>",
 		timeStr, hexColor, prefix, escapedMsg)
 	line.LayoutOrder = logCount
 	line.Parent = termScroll
@@ -958,7 +983,6 @@ local function dumpTree(arg)
 	end
 	scan(target, 0)
 	if #lines >= TREE_MAX_LINES then table.insert(lines, "... truncated at " .. TREE_MAX_LINES .. " lines, use a deeper path or lower depth") end
-	showToast("Tree Inspected", tostring(opts.path or "Workspace"), "info")
 	return table.concat(lines, "\n")
 end
 
@@ -1006,7 +1030,6 @@ local function runTest(arg)
 	mod.Parent = runner
 	runner.Parent = sss
 
-	showToast("Play Test", "Starting...", "info")
 	local ran, raw = pcall(function()
 		return game:GetService("StudioTestService"):ExecutePlayModeAsync(HttpService:JSONEncode({ timeout = timeout }))
 	end)
@@ -1035,10 +1058,10 @@ local function handleCommand(raw)
 	end
 
 	if data.cmd == "tree" then
-		appendLog("TREE", tostring(data.arg), C_CYAN)
+		appendLog("TREE", tostring(data.arg), C_MUTED)
 		return dumpTree(data.arg)
 	elseif data.cmd == "test" then
-		appendLog("TEST", "play mode", C_CYAN)
+		appendLog("TEST", "play mode", C_VIOLET)
 		return runTest(data.arg)
 	elseif data.cmd == "run" or data.cmd == "exec" then
 		local preview = string.sub(data.arg or "", 1, 55):gsub("[\n\r]", " ")
@@ -1130,40 +1153,36 @@ local function connectToDaemon()
 			sessionView.Visible = true
 			switchTab("console")
 
-			liveText.Text = "PORT " .. currentPort
+			setLive(true)
 			connHostValue.Text = currentHost:gsub("^https?://", "") .. ":" .. currentPort
 			appendLog("SYS", "Connected to Vesper on port " .. currentPort, C_EMERALD)
 			setupStatusLabel.Text = ""
-			showToast("Vesper Connected", "Bridge active on port " .. currentPort, "success")
 		else
 			isConnected = false
 			setupStatusLabel.TextColor3 = C_ROSE
 			local errMsg = tostring(res or "")
 			if errMsg:lower():find("not enabled") then
 				setupStatusLabel.Text = "Enable 'Allow HTTP Requests' in Game Settings -> Security"
-				showToast("HTTP Disabled", "Enable in Game Settings", "error")
 			else
 				setupStatusLabel.Text = "Cannot reach server. Run: vesper serve"
-				showToast("Connection Failed", "Server unreachable", "error")
 			end
 		end
 	end)
 end
 
-local function disconnectFromDaemon()
+local function disconnectFromDaemon(reason)
 	isConnected = false
 	isConnecting = false
 	startConnectBtn.Text = "Connect"
 	sessionView.Visible = false
 	setupView.Visible = true
-	setupStatusLabel.TextColor3 = C_DIM
-	setupStatusLabel.Text = "Disconnected. Run 'vesper serve' to resume."
+	setupStatusLabel.TextColor3 = reason and C_ROSE or C_DIM
+	setupStatusLabel.Text = reason or "Disconnected. Run 'vesper serve' to resume."
 	for _, child in ipairs(termScroll:GetChildren()) do
 		if child:IsA("TextLabel") and child ~= emptyLabel then child:Destroy() end
 	end
 	logCount = 0
 	emptyLabel.Visible = true
-	showToast("Vesper Disconnected", "Bridge paused", "info")
 end
 
 startConnectBtn.MouseButton1Click:Connect(function()
@@ -1175,7 +1194,7 @@ disconnectBtn.MouseButton1Click:Connect(function()
 end)
 
 hostInput.Focused:Connect(function()
-	hStroke.Color = C_CYAN
+	hStroke.Color = C_VIOLET
 end)
 
 hostInput.FocusLost:Connect(function()
@@ -1191,7 +1210,7 @@ hostInput.FocusLost:Connect(function()
 end)
 
 portInput.Focused:Connect(function()
-	pStroke.Color = C_CYAN
+	pStroke.Color = C_VIOLET
 end)
 
 portInput.FocusLost:Connect(function()
@@ -1246,6 +1265,10 @@ task.spawn(function()
 			end)
 
 			if ok and res and res.Success then
+				if linkLost then
+					setLive(true)
+					appendLog("NET", "Reconnected", C_EMERALD)
+				end
 				if res.Body and res.Body ~= "" and res.Body ~= "NOOP" then
 					local idOk, idData = pcall(function() return HttpService:JSONDecode(res.Body) end)
 					local cmdId = idOk and type(idData) == "table" and idData.id or ""
@@ -1263,8 +1286,13 @@ task.spawn(function()
 				end
 			else
 				if isConnected then
-					appendLog("NET", "Lost connection to server", C_ROSE)
-					showToast("Connection Lost", "Reconnecting...", "error")
+					if not linkLost then
+						setLive(false)
+						appendLog("NET", "Lost connection to server", C_ROSE)
+						showToast("Connection Lost", "Reconnecting...", "error")
+					elseif os.clock() - lostSince > OFFLINE_GRACE then
+						disconnectFromDaemon("Server unreachable. Run: vesper serve")
+					end
 					task.wait(1)
 				end
 			end
