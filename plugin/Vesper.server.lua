@@ -1046,15 +1046,16 @@ local function handleCommand(raw)
 			return "ERROR: loadstring is unavailable in this Roblox Studio environment"
 		end
 
-		local fnOk, fnOrErr = pcall(loadFn, data.arg)
-		if not fnOk or not fnOrErr then
+		-- loadstring returns nil, message on a syntax error instead of throwing
+		local fnOk, fn, loadErr = pcall(loadFn, data.arg)
+		if not fnOk or not fn then
+			local msg = tostring(fnOk and loadErr or fn)
 			if rec then ChangeHistoryService:FinishRecording(rec, Enum.FinishRecordingOperation.Cancel) end
-			appendLog("ERR", "Syntax: " .. tostring(fnOrErr), C_ROSE)
-			showToast("Syntax Error", tostring(fnOrErr), "error")
-			return "SYNTAX_ERROR: " .. tostring(fnOrErr)
+			appendLog("ERR", "Syntax: " .. msg, C_ROSE)
+			showToast("Syntax Error", msg, "error")
+			return "SYNTAX_ERROR: " .. msg
 		end
 
-		local fn = fnOrErr
 		local env = setmetatable({
 			print = function(...)
 				local t = {}
