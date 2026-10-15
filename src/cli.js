@@ -196,6 +196,24 @@ function runServer() {
       return;
     }
 
+    if (url.pathname === "/shot" && req.method === "POST") {
+      const body = await readBody(req);
+      const m = (req.headers["x-vesper-format"] || "").match(/^rgba:(\d+)x(\d+)$/);
+      if (!m || body.length !== m[1] * m[2] * 4) {
+        res.writeHead(400, { "Content-Type": "text/plain" });
+        res.end("ERROR: bad screenshot payload");
+        return;
+      }
+      const name = (url.searchParams.get("name") || "shot").replace(/[^\w.-]+/g, "_").slice(0, 60);
+      const dir = join(tmpdir(), "vesper-shots");
+      mkdirSync(dir, { recursive: true });
+      const file = join(dir, `${name}.png`);
+      writeFileSync(file, rgbaToPng(+m[1], +m[2], body));
+      res.writeHead(200, { "Content-Type": "text/plain" });
+      res.end(file);
+      return;
+    }
+
     if (url.pathname === "/status") {
       const studioConnected = Date.now() - lastPollTime < 3500;
       res.writeHead(200, { "Content-Type": "application/json" });

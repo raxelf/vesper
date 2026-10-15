@@ -5,7 +5,29 @@ local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
 local ChangeHistoryService = game:GetService("ChangeHistoryService")
 local TweenService = game:GetService("TweenService")
-if not RunService:IsEdit() then return end
+if not RunService:IsEdit() then
+	-- A Play session also loads this plugin in the game's Server and Client sessions.
+	-- The Client one only answers screenshot requests from `vesper test` scripts.
+	if RunService:IsClient() then
+		local RS = game:GetService("ReplicatedStorage")
+		local function hook(remote)
+			if remote.Name ~= "__VesperShot" or not remote:IsA("RemoteEvent") then return end
+			remote.OnClientEvent:Connect(function(name, seq, runId)
+				local got
+				local ok = pcall(function()
+					game:GetService("CaptureService"):CaptureScreenshot(function(id) got = id end)
+				end)
+				local t = os.clock()
+				while ok and got == nil and os.clock() - t < 5 do task.wait(0.05) end
+				plugin:SetSetting("vesper_cap_" .. runId .. "_" .. seq, HttpService:JSONEncode({ name = name, id = got }))
+				remote:FireServer(seq)
+			end)
+		end
+		RS.ChildAdded:Connect(hook)
+		for _, child in ipairs(RS:GetChildren()) do hook(child) end
+	end
+	return
+end
 local CoreGui = game:GetService("CoreGui")
 
 local C_BG         = Color3.fromRGB(15, 15, 18)
@@ -951,12 +973,59 @@ local function dumpTree(arg)
 	return table.concat(lines, "\n")
 end
 
+local function grabPixels(uri, width)
+	local AssetService = game:GetService("AssetService")
+	local imgOk, img = pcall(function() return AssetService:CreateEditableImageAsync(Content.fromUri(uri)) end)
+	if not imgOk then return nil, "cannot read screenshot: " .. tostring(img) end
+	local size = img.Size
+	if size.X > width then
+		-- EditableImage has no resize: draw it scaled onto a smaller one
+		local target = Vector2.new(width, math.max(1, math.floor(size.Y * width / size.X)))
+		local small = AssetService:CreateEditableImage({ Size = target })
+		local sc = target.X / size.X
+		small:DrawImageTransformed(target / 2, Vector2.new(sc, sc), 0, img, { CombineType = Enum.ImageCombineType.Overwrite })
+		img:Destroy()
+		img = small
+		size = img.Size
+	end
+	local buf = img:ReadPixelsBuffer(Vector2.zero, size)
+	img:Destroy()
+	return size, buf
+end
+
+local function postShot(name, size, buf)
+	local ok, res = pcall(function()
+		return HttpService:RequestAsync({
+			Url = string.format("%s:%d/shot?name=%s", HOST, currentPort, HttpService:UrlEncode(name)),
+			Method = "POST",
+			Headers = { ["Content-Type"] = "application/octet-stream", ["X-Vesper-Format"] = string.format("rgba:%dx%d", size.X, size.Y) },
+			Body = buffer.tostring(buf),
+		})
+	end)
+	if ok and res.Success then return res.Body end
+	return nil
+end
+
 local TEST_RUNNER = [[
 local STS = game:GetService("StudioTestService")
 local LogService = game:GetService("LogService")
 local HttpService = game:GetService("HttpService")
 local args = HttpService:JSONDecode(STS:GetTestArgs())
 local logs, done = {}, false
+local shotRemote = Instance.new("RemoteEvent")
+shotRemote.Name = "__VesperShot"
+shotRemote.Parent = game:GetService("ReplicatedStorage")
+local shotSeq, acked = 0, 0
+shotRemote.OnServerEvent:Connect(function(_, seq) acked = math.max(acked, seq) end)
+-- shot("name") asks the client session to capture, and waits until it has
+shared.__vesperShot = function(name)
+	shotSeq += 1
+	local mine = shotSeq
+	shotRemote:FireAllClients(tostring(name), mine, args.runId)
+	local t = os.clock()
+	while acked < mine and os.clock() - t < 5 do task.wait(0.05) end
+	return acked >= mine
+end
 LogService.MessageOut:Connect(function(m, t)
 	if t == Enum.MessageType.MessageOutput then table.insert(logs, m)
 	elseif t == Enum.MessageType.MessageWarning then table.insert(logs, "[WARN] " .. m)
@@ -965,6 +1034,9 @@ end)
 local function finish(ok, res)
 	if done then return end
 	done = true
+	-- Studio delivers log messages up to ~0.4s late; wait so the last prints are not lost
+	-- (and so the last screenshots can be read before the session ends)
+	task.wait(shotSeq > 0 and 0.8 or 0.6)
 	STS:EndTest(HttpService:JSONEncode({ ok = ok, result = res ~= nil and tostring(res) or nil, logs = logs }))
 end
 task.delay(args.timeout, function() finish(false, "timeout after " .. args.timeout .. "s") end)
@@ -991,13 +1063,42 @@ local function runTest(arg)
 	runner.Source = TEST_RUNNER
 	local mod = Instance.new("ModuleScript")
 	mod.Name = "UserTest"
-	mod.Source = "return function()\n" .. opts.code .. "\nend"
+	mod.Source = "return function()\nlocal shot = shared.__vesperShot\n" .. opts.code .. "\nend"
 	mod.Parent = runner
 	runner.Parent = sss
 
-	local ran, raw = pcall(function()
-		return game:GetService("StudioTestService"):ExecutePlayModeAsync(HttpService:JSONEncode({ timeout = timeout }))
+	-- screenshots requested by the script arrive as plugin settings written by the Client session
+	local runId = HttpService:GenerateGUID(false)
+	local shots, stopReading, busy = {}, false, false
+	task.spawn(function()
+		local seq = 1
+		while not stopReading do
+			local key = "vesper_cap_" .. runId .. "_" .. seq
+			local raw = plugin:GetSetting(key)
+			if raw then
+				busy = true
+				plugin:SetSetting(key, nil)
+				local okc, cap = pcall(function() return HttpService:JSONDecode(raw) end)
+				local label = okc and cap.name or ("shot" .. seq)
+				local result = "capture failed"
+				if okc and cap.id then
+					local size, buf = grabPixels(cap.id, 640)
+					result = size and (postShot(label, size, buf) or "upload failed") or buf
+				end
+				table.insert(shots, label .. " -> " .. result)
+				seq += 1
+				busy = false
+			else
+				task.wait(0.15)
+			end
+		end
 	end)
+
+	local ran, raw = pcall(function()
+		return game:GetService("StudioTestService"):ExecutePlayModeAsync(HttpService:JSONEncode({ timeout = timeout, runId = runId }))
+	end)
+	stopReading = true
+	while busy do task.wait(0.05) end
 	runner:Destroy()
 
 	if not ran then
@@ -1011,7 +1112,9 @@ local function runTest(arg)
 	local out = table.concat(r.logs or {}, "\n")
 	showToast("Play Test", r.ok and "Passed" or "Failed", r.ok and "success" or "error")
 	appendLog(r.ok and "OK" or "FAIL", tostring(r.result or "done"), r.ok and C_EMERALD or C_ROSE)
-	return (r.ok and "PASS" or "FAIL") .. (r.result and (": " .. r.result) or "") .. (out ~= "" and ("\nLOGS:\n" .. out) or "")
+	return (r.ok and "PASS" or "FAIL") .. (r.result and (": " .. r.result) or "")
+		.. (#shots > 0 and ("\nSCREENSHOTS:\n" .. table.concat(shots, "\n")) or "")
+		.. (out ~= "" and ("\nLOGS:\n" .. out) or "")
 end
 
 local function takeShot(arg)
@@ -1043,25 +1146,8 @@ local function takeShot(arg)
 	if not capOk then return "ERROR: capture failed: " .. tostring(capErr) end
 	if not got then return "ERROR: capture timed out" end
 
-	local imgOk, img = pcall(function()
-		return game:GetService("AssetService"):CreateEditableImageAsync(Content.fromUri(got))
-	end)
-	if not imgOk then return "ERROR: cannot read screenshot: " .. tostring(img) end
-
-	-- the full viewport is several MB; scale down so one HTTP reply carries it
-	local width = math.clamp(tonumber(opts.width) or 640, 64, 1280)
-	local size = img.Size
-	if size.X > width then
-		-- EditableImage has no resize: draw it scaled onto a smaller one
-		local target = Vector2.new(width, math.max(1, math.floor(size.Y * width / size.X)))
-		local small = game:GetService("AssetService"):CreateEditableImage({ Size = target })
-		local s = target.X / size.X
-		small:DrawImageTransformed(target / 2, Vector2.new(s, s), 0, img, { CombineType = Enum.ImageCombineType.Overwrite })
-		img:Destroy()
-		img = small
-		size = img.Size
-	end
-	local buf = img:ReadPixelsBuffer(Vector2.zero, size)
+	local size, buf = grabPixels(got, math.clamp(tonumber(opts.width) or 640, 64, 1280))
+	if not size then return "ERROR: " .. buf end
 
 	-- a hidden or minimized Studio window renders the 3D view as one flat colour
 	local function px(x, y)
@@ -1077,7 +1163,6 @@ local function takeShot(arg)
 		end
 	end
 	if blank then
-		img:Destroy()
 		local open = 0
 		pcall(function()
 			for _, doc in ipairs(game:GetService("ScriptEditorService"):GetScriptDocuments()) do
@@ -1089,7 +1174,6 @@ local function takeShot(arg)
 	end
 
 	local body = buffer.tostring(buf)
-	img:Destroy()
 	appendLog("SHOT", string.format("%dx%d", size.X, size.Y), C_VIOLET)
 	return { format = string.format("rgba:%dx%d", size.X, size.Y), body = body }
 end
