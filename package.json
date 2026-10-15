@@ -1,7 +1,7 @@
 {
   "name": "@raxelf/vesper",
   "version": "0.3.0",
-  "description": "Fast Roblox Studio AI Bridge",
+  "description": "A small bridge between AI agents and Roblox Studio, driven from the command line",
   "type": "module",
   "main": "src/cli.js",
   "bin": {
@@ -24,5 +24,21 @@
     "vesper"
   ],
   "author": "raxelf",
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/raxelf/vesper.git"
+  },
+  "bugs": {
+    "url": "https://github.com/raxelf/vesper/issues"
+  },
+  "homepage": "https://github.com/raxelf/vesper#readme",
+  "files": [
+    "bin",
+    "src",
+    "plugin"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
 }
